@@ -1,0 +1,157 @@
+Here's a sample Terraform code for the e-commerce infrastructure:
+
+# Provider Configuration
+
+provider "aws" {
+  region = "us-west-2"
+}
+
+
+# VPC Configuration
+
+resource "aws_vpc" "shopmax_vpc" {
+  cidr_block = "10.0.0.0/16"
+}
+
+resource "aws_subnet" "shopmax_subnet" {
+  vpc_id            = aws_vpc.shopmax_vpc.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = "us-west-2a"
+}
+
+resource "aws_internet_gateway" "shopmax_igw" {
+  vpc_id = aws_vpc.shopmax_vpc.id
+}
+
+resource "aws_route_table" "shopmax_rt" {
+  vpc_id = aws_vpc.shopmax_vpc.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.shopmax_igw.id
+  }
+}
+
+resource "aws_route_table_association" "shopmax_rt_assoc" {
+  subnet_id      = aws_subnet.shopmax_subnet.id
+  route_table_id = aws_route_table.shopmax_rt.id
+}
+
+
+# Security Group Configuration
+
+resource "aws_security_group" "shopmax_sg" {
+  name        = "shopmax_sg"
+  description = "Security group for ShopMax"
+  vpc_id      = aws_vpc.shopmax_vpc.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+
+# EC2 Instance Configuration
+
+resource "aws_instance" "shopmax_ec2" {
+  ami           = "ami-0c94855ba95c71c8"
+  instance_type = "t2.micro"
+  vpc_security_group_ids = [aws_security_group.shopmax_sg.id]
+  subnet_id = aws_subnet.shopmax_subnet.id
+  key_name = "shopmax_key"
+}
+
+
+# RDS Instance Configuration
+
+resource "aws_db_instance" "shopmax_rds" {
+  allocated_storage    = 20
+  engine                 = "mysql"
+  engine_version         = "8.0.21"
+  instance_class         = "db.t2.micro"
+  name                   = "shopmaxdb"
+  username               = "shopmaxuser"
+  password               = "shopmaxpassword"
+  parameter_group_name   = "default.mysql8.0"
+  skip_final_snapshot    = true
+  vpc_security_group_ids = [aws_security_group.shopmax_sg.id]
+  db_subnet_group_name   = aws_db_subnet_group.shopmax_rds_subnet_group.name
+}
+
+resource "aws_db_subnet_group" "shopmax_rds_subnet_group" {
+  name       = "shopmax-rds-subnet-group"
+  subnet_ids = [aws_subnet.shopmax_subnet.id]
+}
+
+
+# S3 Bucket Configuration
+
+resource "aws_s3_bucket" "shopmax_s3_bucket" {
+  bucket = "shopmax-s3-bucket"
+  acl    = "private"
+
+  versioning {
+    enabled = true
+  }
+}
+
+
+# CloudFront Distribution Configuration
+
+resource "aws_cloudfront_distribution" "shopmax_cf_distribution" {
+  origin {
+    domain_name = aws_s3_bucket.shopmax_s3_bucket.bucket_regional_domain_name
+    origin_id   = "shopmax-s3-origin"
+  }
+
+  enabled = true
+
+  default_cache_behavior {
+    allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = "shopmax-s3-origin"
+
+    forwarded_values {
+      query_string = false
+
+      cookies {
+        forward = "none"
+      }
+    }
+
+    viewer_protocol_policy = "allow-all"
+    min_ttl                = 0
+    default_ttl            = 3600
+    max_ttl                = 86400
+  }
+
+  price_class = "PriceClass_100"
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "whitelist"
+      locations        = ["US", "CA", "GB", "DE", "JP"]
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+}
