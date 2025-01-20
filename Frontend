@@ -1,0 +1,117 @@
+package.json
+
+{
+  "name": "shopmax-frontend",
+  "version": "0.1.0",
+  "dependencies": {
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-redux": "^7.2.3",
+    "redux": "^4.0.5",
+    "redux-thunk": "^2.3.0",
+    "material-ui": "^4.11.3"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test"
+  }
+}
+
+
+src/index.js
+
+jsx
+import React from 'react';
+import ReactDOM from 'react-dom';
+import { Provider } from 'react-redux';
+import store from './store';
+import App from './App';
+
+ReactDOM.render(
+  <Provider store={store}>
+    <App />
+  </Provider>,
+  document.getElementById('root')
+);
+
+
+src/App.js
+
+jsx
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Route, Switch } from 'react-router-dom';
+import Products from './Products';
+import ProductDetail from './ProductDetail';
+import Cart from './Cart';
+import Checkout from './Checkout';
+
+function App() {
+  const [products, setProducts] = useState([]);
+  const [cart, setCart] = useState({});
+
+  useEffect(() => {
+    fetch('/api/products')
+      .then(response => response.json())
+      .then(data => setProducts(data));
+  }, []);
+
+  const handleAddToCart = (product) => {
+    setCart((prevCart) => ({ ...prevCart, [product.id]: product }));
+  };
+
+  const handleRemoveFromCart = (productId) => {
+    setCart((prevCart) => {
+      const newCart = { ...prevCart };
+      delete newCart[productId];
+      return newCart;
+    });
+  };
+
+  return (
+    <BrowserRouter>
+      <Switch>
+        <Route path="/" exact component={Products} />
+        <Route path="/products/:id" component={ProductDetail} />
+        <Route path="/cart" component={Cart} />
+        <Route path="/checkout" component={Checkout} />
+      </Switch>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+
+
+src/Products.js
+
+jsx
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+
+function Products() {
+  const [products, setProducts] = useState([]);
+
+  useEffect(() => {
+    fetch('/api/products')
+      .then(response => response.json())
+      .then(data => setProducts(data));
+  }, []);
+
+  return (
+    <div>
+      <h1>Products</h1>
+      <ul>
+        {products.map((product) => (
+          <li key={product.id}>
+            <Link to={`/products/${product.id}`}>
+              {product.name}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export default Products;
